@@ -29,6 +29,29 @@ WEIGHTS = {
     "freshness": 1,
 }
 
+# Revision 2 — clichéd-setup penalty. Rationale: the brief ranks
+# freshness last, but a recycled setup family caps how fresh a line can
+# feel no matter how well it is written. A line built on a crowded
+# setup family ("my therapist says", gym complaints, fitness trackers,
+# smart appliances, "life coach quit") therefore takes a flat penalty,
+# so a fresh idea is not beaten by a polished retread. The penalty is
+# deliberately small (2 of 50): it only separates near-ties and never
+# overturns a clear laugh lead.
+CLICHE_PENALTY = 2
+CLICHE_SETUPS = (
+    "life coach",
+    "My cat brought me",
+    "My therapist says",
+    "smart speaker",
+    "smartwatch",
+    "meal prepping",
+    "self-help book",
+    "The gym charged me",
+    "asked an AI to write",
+    "alarm clock",
+    "smart fridge",
+)
+
 CANDIDATES = [
     {
         "text": "I went to a silent retreat. Twenty minutes in, the silence filed a noise complaint against me.",
@@ -133,6 +156,33 @@ CANDIDATES = [
                "that got stronger. But the laugh is mild and the setup "
                "is a familiar gym-membership complaint.",
     },
+    {
+        "text": "I asked an AI to write my apology. It apologized to me for having to read it.",
+        "scores": {"laugh": 4, "surprise": 5, "economy": 4, "freshness": 4},
+        "why": "A neat double reversal: the tool hired to apologize "
+               "becomes the wronged party, and its apology is aimed at "
+               "me, not for me. The turn is genuinely surprising. Loses "
+               "on the laugh — the second sentence is clever rather "
+               "than a sudden hit — and AI-apology gags are getting "
+               "common.",
+    },
+    {
+        "text": "My alarm clock finally gave up on me. It just texts 'good luck' now and goes back to sleep.",
+        "scores": {"laugh": 4, "surprise": 4, "economy": 4, "freshness": 4},
+        "why": "Personification with a shrug: the clock stops trying "
+               "and wishes me luck, which is funnier than any snooze "
+               "button. Relatable. Loses on surprise — once the clock "
+               "gives up, 'good luck' is the expected line — and the "
+               "setup is a familiar alarm-clock complaint.",
+    },
+    {
+        "text": "I told my smart fridge I was on a diet. It started hiding the snacks and judging me in Celsius.",
+        "scores": {"laugh": 3, "surprise": 4, "economy": 3, "freshness": 4},
+        "why": "'Judging me in Celsius' is a fresh, odd detail, and a "
+               "fridge that hides food is a fun image. But the laugh "
+               "is gentle, the setup is wordy at 96 characters, and "
+               "smart-appliance gags are a crowded family.",
+    },
 ]
 
 
@@ -142,7 +192,10 @@ def is_one_line_joke(text: str) -> bool:
 
 
 def score(candidate: dict) -> int:
-    return sum(WEIGHTS[k] * v for k, v in candidate["scores"].items())
+    total = sum(WEIGHTS[k] * v for k, v in candidate["scores"].items())
+    if any(setup in candidate["text"] for setup in CLICHE_SETUPS):
+        total -= CLICHE_PENALTY
+    return total
 
 
 def main() -> int:
@@ -152,7 +205,10 @@ def main() -> int:
         if not is_one_line_joke(cand["text"]):
             continue
         ranked.append((score(cand), cand))
-    ranked.sort(key=lambda item: (-item[0], len(item[1]["text"])))
+    # Revision 2 — explicit freshness tie-break: on equal total score,
+    # the fresher line wins (the brief's last criterion, used here only
+    # to break ties), then the shorter line.
+    ranked.sort(key=lambda item: (-item[0], -item[1]["scores"]["freshness"], len(item[1]["text"])))
     best_score, best = ranked[0]
 
     out_dir = os.environ.get("MAKEFUN_OUTPUT", "/output")
